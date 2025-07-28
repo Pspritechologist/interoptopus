@@ -70,15 +70,20 @@ namespace My.Company
 
     }
 
-    public partial struct Error
+    public partial struct ErrorVariants
     {
         uint _variant;
     }
 
     [NativeMarshalling(typeof(MarshallerMeta))]
-    public partial struct Error 
+    public partial struct ErrorVariants 
     {
 
+
+        public enum Error : uint
+        {
+            Fail = 0,
+        }
 
         [StructLayout(LayoutKind.Explicit)]
         public unsafe struct Unmanaged
@@ -87,9 +92,9 @@ namespace My.Company
             internal uint _variant;
 
             [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-            internal Error ToManaged()
+            internal ErrorVariants ToManaged()
             {
-                var _managed = new Error();
+                var _managed = new ErrorVariants();
                 _managed._variant = _variant;
                 return _managed;
             }
@@ -117,6 +122,9 @@ namespace My.Company
 
         public void AsFail() { if (_variant != 0) throw new InteropException(); }
 
+
+        public void AsFailOrElse(Action<Error> cb) { if (_variant != 0) cb(this) }
+
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public override string ToString()
         {
@@ -124,22 +132,22 @@ namespace My.Company
             throw new InteropException();
         }
 
-        [CustomMarshaller(typeof(Error), MarshalMode.Default, typeof(Marshaller))]
+        [CustomMarshaller(typeof(ErrorVariants), MarshalMode.Default, typeof(Marshaller))]
         private struct MarshallerMeta { }
 
         public ref struct Marshaller
         {
-            private Error _managed;
+            private ErrorVariants _managed;
             private Unmanaged _unmanaged;
 
             [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-            public Marshaller(Error managed) { _managed = managed; }
+            public Marshaller(ErrorVariants managed) { _managed = managed; }
 
             [MethodImpl(MethodImplOptions.AggressiveOptimization)]
             public Marshaller(Unmanaged unmanaged) { _unmanaged = unmanaged; }
 
             [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-            public void FromManaged(Error managed) { _managed = managed; }
+            public void FromManaged(ErrorVariants managed) { _managed = managed; }
 
             [MethodImpl(MethodImplOptions.AggressiveOptimization)]
             public void FromUnmanaged(Unmanaged unmanaged) { _unmanaged = unmanaged; }
@@ -148,7 +156,7 @@ namespace My.Company
             public Unmanaged ToUnmanaged() { return _managed.ToUnmanaged(); }
 
             [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-            public Error ToManaged() { return _unmanaged.ToManaged(); }
+            public ErrorVariants ToManaged() { return _unmanaged.ToManaged(); }
 
             [MethodImpl(MethodImplOptions.AggressiveOptimization)]
             public void Free() {}
@@ -323,6 +331,14 @@ namespace My.Company
         public void AsPanic() { if (_variant != 2) throw new InteropException(); }
         public void AsNull() { if (_variant != 3) throw new InteropException(); }
 
+        public IntPtr? AsOkOrNull() => _variant == 0 ? _Ok : null;
+        public Error? AsErrOrNull() => _variant == 1 ? _Err : null;
+
+        public IntPtr AsOkOrElse(Func<IntPtr, ResultConstPtrGameEngineError> cb) => _variant == 0 ? _Ok : cb(this);
+        public Error AsErrOrElse(Func<Error, ResultConstPtrGameEngineError> cb) => _variant == 1 ? _Err : cb(this);
+        public void AsPanicOrElse(Action<ResultConstPtrGameEngineError> cb) { if (_variant != 2) cb(this) }
+        public void AsNullOrElse(Action<ResultConstPtrGameEngineError> cb) { if (_variant != 3) cb(this) }
+
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public override string ToString()
         {
@@ -436,6 +452,13 @@ namespace My.Company
         public Error AsErr() { if (_variant != 1) { throw new InteropException(); } else { return _Err; } }
         public void AsPanic() { if (_variant != 2) throw new InteropException(); }
         public void AsNull() { if (_variant != 3) throw new InteropException(); }
+
+        public Error? AsErrOrNull() => _variant == 1 ? _Err : null;
+
+        public void AsOkOrElse(Action<ResultError> cb) { if (_variant != 0) cb(this) }
+        public Error AsErrOrElse(Func<Error, ResultError> cb) => _variant == 1 ? _Err : cb(this);
+        public void AsPanicOrElse(Action<ResultError> cb) { if (_variant != 2) cb(this) }
+        public void AsNullOrElse(Action<ResultError> cb) { if (_variant != 3) cb(this) }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public override string ToString()

@@ -16,7 +16,12 @@ pub fn write_type_definition_enum(i: &Interop, w: &mut IndentWriter, the_type: &
 
 pub fn write_type_definition_enum_marshaller(i: &Interop, w: &mut IndentWriter, the_type: &Enum) -> Result<(), Error> {
     i.debug(w, "write_type_definition_enum_marshaller")?;
+
+    let is_unit = the_type.variants().iter().all(|v| matches!(v.kind(), VariantKind::Unit(_)));
+
     let name = the_type.rust_name();
+    let enum_name = format!("{name}Enum");
+
     let self_kind = if is_reusable(&the_type.to_type()) { "struct" } else { "class" };
     let into = if is_reusable(&the_type.to_type()) { "To" } else { "Into" };
     let move_semantics = if is_reusable(&the_type.to_type()) {
@@ -56,6 +61,24 @@ pub fn write_type_definition_enum_marshaller(i: &Interop, w: &mut IndentWriter, 
         indented!(w, [()], r"}}")?;
     }
     w.newline()?;
+
+    if is_unit {
+        indented!(w, [()], r"public {enum_name} AsEnum() => ({enum_name}) _variant;")?;
+        indented!(w, [()], r"public static implicit operator {enum_name}({name} value) => value.AsEnum();")?;
+        w.newline()?;
+
+        indented!(w, [()], r"public enum {enum_name} : uint")?;
+        indented!(w, [()], r"{{")?;
+        for variant in the_type.variants() {
+            let name = variant.name();
+            match variant.kind() {
+                VariantKind::Unit(n) => indented!(w, [()()], r"{name} = {n},")?,
+                _ => unreachable!(),
+            }
+        }
+        indented!(w, [()], r"}}")?;
+        w.newline()?;
+    }
 
     indented!(w, [()], r"[StructLayout(LayoutKind.Explicit)]")?;
     indented!(w, [()], r"public unsafe struct Unmanaged")?;
@@ -228,6 +251,44 @@ pub fn write_type_definition_enum_variant_utils(i: &Interop, w: &mut IndentWrite
             VariantKind::Typed(x, _) => {
                 let vname = variant.name();
                 indented!(w, [()], r"public void As{vname}() {{ if (_variant != {x}) {throw} }}")?;
+            }
+        }
+    }
+    w.newline()?;
+
+    // AsNullable... "unwraps" or null (Intended for the Option pattern)
+    indented!(w, [()], r"#nullable enable")?;
+    for variant in the_type.variants() {
+        let throw = "throw new InteropException();";
+        match variant.kind() {
+            VariantKind::Unit(x) => { }
+            VariantKind::Typed(x, t) if !t.is_void() => {
+                let vname = variant.name();
+                let ty = field_to_type(t);
+                indented!(w, [()], r"public {ty}? As{vname}OrNull() => _variant == {x} ? _{vname} : null;")?;
+            }
+            VariantKind::Typed(x, _) => { }
+        }
+    }
+    indented!(w, [()], r"#nullable disable")?;
+    w.newline()?;
+
+    // AsOrElse... "unwraps" with a fallback (Intended for the Result pattern)
+    for variant in the_type.variants() {
+        let throw = "throw new InteropException();";
+        match variant.kind() {
+            VariantKind::Unit(x) => {
+                let vname = variant.name();
+                indented!(w, [()], r"public void As{vname}OrElse(Action<{name}> cb) {{ if (_variant != {x}) cb(this); }}")?;
+            }
+            VariantKind::Typed(x, t) if !t.is_void() => {
+                let vname = variant.name();
+                let ty = field_to_type(t);
+                indented!(w, [()], r"public {ty} As{vname}OrElse(Func<{name}, {ty}> cb) => _variant == {x} ? _{vname} : cb(this);")?;
+            }
+            VariantKind::Typed(x, _) => {
+                let vname = variant.name();
+                indented!(w, [()], r"public void As{vname}OrElse(Action<{name}> cb) {{ if (_variant != {x}) cb(this); }}")?;
             }
         }
     }
