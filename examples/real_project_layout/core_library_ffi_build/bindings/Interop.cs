@@ -172,6 +172,12 @@ namespace My.Company
     {
         public float x;
         public float y;
+        public Vec2(float _x, float _y)
+        {
+            x = _x;
+            y = _y;
+        }
+
     }
 
     [NativeMarshalling(typeof(MarshallerMeta))]

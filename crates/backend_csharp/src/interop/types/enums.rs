@@ -73,7 +73,7 @@ pub fn write_type_definition_enum_marshaller(i: &Interop, w: &mut IndentWriter, 
             let name = variant.name();
             match variant.kind() {
                 VariantKind::Unit(n) => indented!(w, [()()], r"{name} = {n},")?,
-                _ => unreachable!(),
+                VariantKind::Typed(..) => unreachable!(),
             }
         }
         indented!(w, [()], r"}}")?;
@@ -259,15 +259,14 @@ pub fn write_type_definition_enum_variant_utils(i: &Interop, w: &mut IndentWrite
     // AsNullable... "unwraps" or null (Intended for the Option pattern)
     indented!(w, [()], r"#nullable enable")?;
     for variant in the_type.variants() {
-        let throw = "throw new InteropException();";
         match variant.kind() {
-            VariantKind::Unit(x) => { }
+            VariantKind::Unit(_) => { }
             VariantKind::Typed(x, t) if !t.is_void() => {
                 let vname = variant.name();
                 let ty = field_to_type(t);
                 indented!(w, [()], r"public {ty}? As{vname}OrNull() => _variant == {x} ? _{vname} : null;")?;
             }
-            VariantKind::Typed(x, _) => { }
+            VariantKind::Typed(_, _) => { }
         }
     }
     indented!(w, [()], r"#nullable disable")?;
@@ -275,7 +274,6 @@ pub fn write_type_definition_enum_variant_utils(i: &Interop, w: &mut IndentWrite
 
     // AsOrElse... "unwraps" with a fallback (Intended for the Result pattern)
     for variant in the_type.variants() {
-        let throw = "throw new InteropException();";
         match variant.kind() {
             VariantKind::Unit(x) => {
                 let vname = variant.name();

@@ -179,6 +179,28 @@ pub fn write_type_definition_composite_body(i: &Interop, w: &mut IndentWriter, t
         write_type_definition_composite_body_field(i, w, field, the_type)?;
     }
 
+    // If all fields are public, create a basic constructor.
+    if the_type.fields().iter().all(|f| *f.visibility() == Visibility::Public) {
+        let args = the_type.fields().iter()
+            .map(|f| format!("{} _{}", field_to_type(f.the_type()), field_name(f)))
+            .collect::<Vec<_>>()
+            .join(", ");
+            
+        indented!(w, r"public {rust_name}({args})")?;
+
+        indented!(w, r"{{")?;
+        w.indent();
+        for field in the_type.fields() {
+            let field_name = field_name(field);
+            let var_name = format!("_{field_name}");
+            indented!(w, r"{field_name} = {var_name};")?;
+        }
+        w.unindent();
+        indented!(w, r"}}")?;
+
+        w.newline()?;
+    }
+
     w.unindent();
     indented!(w, r"}}")?;
     w.newline()?;
